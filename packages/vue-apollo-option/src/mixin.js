@@ -144,7 +144,7 @@ export function installMixin (app, provider) {
     },
 
     created: launch,
-
+    destroyed: destroy,
     unmounted: destroy,
   })
 }
