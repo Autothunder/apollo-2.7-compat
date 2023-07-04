@@ -1,4 +1,4 @@
-import { Ref, watch, onUnmounted, ref, getCurrentInstance, onBeforeUnmount } from 'vue-demi'
+import { Ref, watch, onUnmounted, ref, getCurrentInstance, onBeforeUnmount } from 'vue'
 import { isServer } from './env.js'
 
 export interface LoadingTracking {
