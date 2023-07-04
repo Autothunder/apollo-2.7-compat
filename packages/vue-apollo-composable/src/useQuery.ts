@@ -10,7 +10,7 @@ import {
   nextTick,
 } from 'vue-demi'
 import { DocumentNode } from 'graphql'
-import {
+import type {
   OperationVariables,
   WatchQueryOptions,
   ObservableQuery,
@@ -21,7 +21,7 @@ import {
   ObservableSubscription,
   TypedDocumentNode,
   ApolloError,
-} from '@apollo/client/core'
+} from '@apollo/client/core/index.js'
 import { throttle, debounce } from 'throttle-debounce'
 import { useApolloClient } from './useApolloClient'
 import { ReactiveFunction } from './util/ReactiveFunction'
@@ -37,13 +37,14 @@ import type { CurrentInstance } from './util/types'
 export interface UseQueryOptions<
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   TResult = any,
-  TVariables = OperationVariables
+  TVariables extends OperationVariables = OperationVariables
 > extends Omit<WatchQueryOptions<TVariables>, 'query' | 'variables'> {
   clientId?: string
   enabled?: boolean
   throttle?: number
   debounce?: number
   prefetch?: boolean
+  keepPreviousResult?: boolean
 }
 
 interface SubscribeToMoreItem {
@@ -52,12 +53,12 @@ interface SubscribeToMoreItem {
 }
 
 // Parameters
-export type DocumentParameter<TResult, TVariables = undefined> = DocumentNode | Ref<DocumentNode> | ReactiveFunction<DocumentNode> | TypedDocumentNode<TResult, TVariables> | Ref<TypedDocumentNode<TResult, TVariables>> | ReactiveFunction<TypedDocumentNode<TResult, TVariables>>
+export type DocumentParameter<TResult, TVariables> = DocumentNode | Ref<DocumentNode | null | undefined> | ReactiveFunction<DocumentNode | null | undefined> | TypedDocumentNode<TResult, TVariables> | Ref<TypedDocumentNode<TResult, TVariables> | null | undefined> | ReactiveFunction<TypedDocumentNode<TResult, TVariables> | null | undefined>
 export type VariablesParameter<TVariables> = TVariables | Ref<TVariables> | ReactiveFunction<TVariables>
-export type OptionsParameter<TResult, TVariables> = UseQueryOptions<TResult, TVariables> | Ref<UseQueryOptions<TResult, TVariables>> | ReactiveFunction<UseQueryOptions<TResult, TVariables>>
+export type OptionsParameter<TResult, TVariables extends OperationVariables> = UseQueryOptions<TResult, TVariables> | Ref<UseQueryOptions<TResult, TVariables>> | ReactiveFunction<UseQueryOptions<TResult, TVariables>>
 
 // Return
-export interface UseQueryReturn<TResult, TVariables> {
+export interface UseQueryReturn<TResult, TVariables extends OperationVariables> {
   result: Ref<TResult | undefined>
   loading: Ref<boolean>
   networkStatus: Ref<number | undefined>
@@ -66,7 +67,7 @@ export interface UseQueryReturn<TResult, TVariables> {
   stop: () => void
   restart: () => void
   forceDisabled: Ref<boolean>
-  document: Ref<DocumentNode>
+  document: Ref<DocumentNode | null | undefined>
   variables: Ref<TVariables | undefined>
   options: UseQueryOptions<TResult, TVariables> | Ref<UseQueryOptions<TResult, TVariables>>
   query: Ref<ObservableQuery<TResult, TVariables> | null | undefined>
@@ -86,7 +87,7 @@ export interface UseQueryReturn<TResult, TVariables> {
  * */
 export function useQuery<TResult = any> (
   document: DocumentParameter<TResult, undefined>
-): UseQueryReturn<TResult, undefined>
+): UseQueryReturn<TResult, Record<string, never>>
 
 /**
  * Use a query that has optional variables but not options
@@ -109,8 +110,8 @@ export function useQuery<TResult = any, TVariables extends OperationVariables = 
 export function useQuery<TResult = any> (
   document: DocumentParameter<TResult, undefined>,
   variables: undefined | null,
-  options: OptionsParameter<TResult, null>,
-): UseQueryReturn<TResult, null>
+  options: OptionsParameter<TResult, Record<string, never>>,
+): UseQueryReturn<TResult, Record<string, never>>
 
 /**
  * Use a query that requires variables and options.
@@ -170,22 +171,46 @@ export function useQueryImpl<
 
   // SSR
   let firstResolve: (() => void) | undefined
+  let firstResolveTriggered = false
   let firstReject: ((apolloError: ApolloError) => void) | undefined
+  let firstRejectError: undefined | ApolloError
+
+  const tryFirstResolve = () => {
+    firstResolveTriggered = true
+    if (firstResolve) firstResolve()
+  }
+
+  const tryFirstReject = (apolloError: ApolloError) => {
+    firstRejectError = apolloError
+    if (firstReject) firstReject(apolloError)
+  }
+
+  const resetFirstResolveReject = () => {
+    firstResolve = undefined
+    firstReject = undefined
+    firstResolveTriggered = false
+    firstRejectError = undefined
+  }
+
   vm && onServerPrefetch?.(() => {
     if (!isEnabled.value || (isServer && currentOptions.value?.prefetch === false)) return
 
     return new Promise<void>((resolve, reject) => {
       firstResolve = () => {
+        resetFirstResolveReject()
         resolve()
-        firstResolve = undefined
-        firstReject = undefined
       }
       firstReject = (apolloError: ApolloError) => {
+        resetFirstResolveReject()
         reject(apolloError)
-        firstResolve = undefined
-        firstReject = undefined
       }
-    }).then(stop).catch(stop)
+
+      if (firstResolveTriggered) {
+        firstResolve()
+      } else if (firstRejectError) {
+        firstReject(firstRejectError)
+      }
+    }).finally(stop)
   })
 
   // Apollo Client
@@ -197,6 +222,7 @@ export function useQueryImpl<
   let observer: ObservableSubscription | undefined
   let started = false
   let ignoreNextResult = false
+  let firstStart = true
 
   /**
    * Starts watching the query
@@ -204,9 +230,10 @@ export function useQueryImpl<
   function start () {
     if (
       started || !isEnabled.value ||
-      (isServer && currentOptions.value?.prefetch === false)
+      (isServer && currentOptions.value?.prefetch === false) ||
+      !currentDocument
     ) {
-      if (firstResolve) firstResolve()
+      tryFirstResolve()
       return
     }
 
@@ -218,7 +245,7 @@ export function useQueryImpl<
 
     query.value = client.watchQuery<TResult, TVariables>({
       query: currentDocument,
-      variables: currentVariables,
+      variables: currentVariables ?? {} as TVariables,
       ...currentOptions.value,
       ...(isServer && currentOptions.value?.fetchPolicy !== 'no-cache')
         ? {
@@ -231,7 +258,7 @@ export function useQueryImpl<
 
     // Make the cache data available to the component immediately
     // This prevents SSR hydration mismatches
-    if (!isServer && (currentOptions.value?.fetchPolicy !== 'no-cache' || currentOptions.value.notifyOnNetworkStatusChange)) {
+    if (!isServer && (firstStart || !currentOptions.value?.keepPreviousResult) && (currentOptions.value?.fetchPolicy !== 'no-cache' || currentOptions.value.notifyOnNetworkStatusChange)) {
       const currentResult = query.value.getCurrentResult(false)
 
       if (!currentResult.loading || currentResult.partial || currentOptions.value?.notifyOnNetworkStatusChange) {
@@ -248,6 +275,8 @@ export function useQueryImpl<
         addSubscribeToMore(item)
       }
     }
+
+    firstStart = false
   }
 
   function startQuerySubscription () {
@@ -260,6 +289,11 @@ export function useQueryImpl<
       next: onNextResult,
       error: onError,
     })
+  }
+
+  function getErrorPolicy () {
+    const client = resolveClient(currentOptions.value?.clientId)
+    return currentOptions.value?.errorPolicy || client.defaultOptions?.watchQuery?.errorPolicy
   }
 
   function onNextResult (queryResult: ApolloQueryResult<TResult>) {
@@ -275,22 +309,26 @@ export function useQueryImpl<
     processNextResult(queryResult)
 
     // When `errorPolicy` is `all`, `onError` will not get called and
-    // ApolloQueryResult.errors may be set at the same time as we get a result
-    if (!queryResult.error && queryResult.errors?.length) {
+    // ApolloQueryResult.errors may be set at the same time as we get a result.
+    // The code is only relevant when `errorPolicy` is `all`, because for other situations it
+    // could hapen that next and error are called at the same time and then it will lead to multiple
+    // onError calls.
+    const errorPolicy = getErrorPolicy()
+    if (errorPolicy && errorPolicy === 'all' && !queryResult.error && queryResult.errors?.length) {
       processError(resultErrorsToApolloError(queryResult.errors))
     }
 
-    if (firstResolve) {
-      firstResolve()
-      stop()
-    }
+    tryFirstResolve()
   }
 
   function processNextResult (queryResult: ApolloQueryResult<TResult>) {
     result.value = queryResult.data && Object.keys(queryResult.data).length === 0 ? undefined : queryResult.data
     loading.value = queryResult.loading
     networkStatus.value = queryResult.networkStatus
-    resultEvent.trigger(queryResult)
+    // Wait for handlers to be registered
+    nextTick(() => {
+      resultEvent.trigger(queryResult)
+    })
   }
 
   function onError (queryError: unknown) {
@@ -301,17 +339,13 @@ export function useQueryImpl<
 
     // any error should already be an ApolloError, but we make sure
     const apolloError = toApolloError(queryError)
-    const client = resolveClient(currentOptions.value?.clientId)
-    const errorPolicy = currentOptions.value?.errorPolicy || client.defaultOptions?.watchQuery?.errorPolicy
+    const errorPolicy = getErrorPolicy()
 
     if (errorPolicy && errorPolicy !== 'none') {
       processNextResult((query.value as ObservableQuery<TResult, TVariables>).getCurrentResult())
     }
     processError(apolloError)
-    if (firstReject) {
-      firstReject(apolloError)
-      stop()
-    }
+    tryFirstReject(apolloError)
     // The observable closes the sub if an error occurs
     resubscribeToQuery()
   }
@@ -320,7 +354,10 @@ export function useQueryImpl<
     error.value = apolloError
     loading.value = false
     networkStatus.value = 8
-    errorEvent.trigger(apolloError)
+    // Wait for handlers to be registered
+    nextTick(() => {
+      errorEvent.trigger(apolloError)
+    })
   }
 
   function resubscribeToQuery () {
@@ -338,7 +375,7 @@ export function useQueryImpl<
    * Stop watching the query
    */
   function stop () {
-    if (firstResolve) firstResolve()
+    tryFirstResolve()
     if (!started) return
     started = false
     loading.value = false
@@ -400,30 +437,15 @@ export function useQueryImpl<
   }
 
   // Applying document
-  let currentDocument: DocumentNode
-  watch(documentRef, value => {
-    currentDocument = value
-    restart()
-  }, {
-    immediate: true,
-  })
+  let currentDocument: DocumentNode | null | undefined = documentRef.value
 
-  // Applying variables
-  let currentVariables: TVariables | undefined
-  let currentVariablesSerialized: string
-  watch(variablesRef, (value, oldValue) => {
-    const serialized = JSON.stringify(value)
-    if (serialized !== currentVariablesSerialized) {
-      currentVariables = value
-      restart()
-    }
-    currentVariablesSerialized = serialized
-  }, {
-    deep: true,
-    immediate: true,
-  })
+  // Enabled state
 
-  // Applying options
+  const forceDisabled = ref(lazy)
+  const enabledOption = computed(() => !currentOptions.value || currentOptions.value.enabled == null || currentOptions.value.enabled)
+  const isEnabled = computed(() => enabledOption.value && !forceDisabled.value && !!documentRef.value)
+
+  // Applying options first (in case it disables the query)
   watch(() => unref(optionsRef), value => {
     if (currentOptions.value && (
       currentOptions.value.throttle !== value.throttle ||
@@ -433,6 +455,33 @@ export function useQueryImpl<
     }
     currentOptions.value = value
     restart()
+  }, {
+    deep: true,
+    immediate: true,
+  })
+
+  // Applying document
+  watch(documentRef, value => {
+    currentDocument = value
+    restart()
+  })
+
+  // Applying variables
+  let currentVariables: TVariables | undefined
+  let currentVariablesSerialized: string
+  watch(() => {
+    if (isEnabled.value) {
+      return variablesRef.value
+    } else {
+      return undefined
+    }
+  }, (value) => {
+    const serialized = JSON.stringify([value, isEnabled.value])
+    if (serialized !== currentVariablesSerialized) {
+      currentVariables = value
+      restart()
+    }
+    currentVariablesSerialized = serialized
   }, {
     deep: true,
     immediate: true,
@@ -517,22 +566,21 @@ export function useQueryImpl<
     item.unsubscribeFns.push(unsubscribe)
   }
 
-  // Enabled state
-
-  const forceDisabled = ref(lazy)
-  const enabledOption = computed(() => !currentOptions.value || currentOptions.value.enabled == null || currentOptions.value.enabled)
-  const isEnabled = computed(() => enabledOption.value && !forceDisabled.value)
-
   // Auto start & stop
+
   watch(isEnabled, value => {
     if (value) {
-      start()
+      nextTick(() => {
+        start()
+      })
     } else {
       stop()
     }
-  }, {
-    immediate: true,
   })
+
+  if (isEnabled.value) {
+    start()
+  }
 
   // Teardown
   vm && onBeforeUnmount(() => {

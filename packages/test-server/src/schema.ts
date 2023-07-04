@@ -1,7 +1,11 @@
-const express = require('express')
-const cors = require('cors')
-const { gql, ApolloServer, ApolloError, PubSub, withFilter } = require('apollo-server-express')
-const shortid = require('shortid')
+import { makeExecutableSchema } from '@graphql-tools/schema'
+import { PubSub, withFilter } from 'graphql-subscriptions'
+import shortid from 'shortid'
+import gql from 'graphql-tag'
+import { channels } from './data.js'
+import { GraphQLErrorWithCode } from './util.js'
+
+const pubsub = new PubSub()
 
 const typeDefs = gql`
 type Channel {
@@ -47,44 +51,34 @@ type Subscription {
 }
 `
 
-const pubsub = new PubSub()
-
-let channels = []
-
-function resetDatabase () {
-  channels = [
-    {
-      id: 'general',
-      label: 'General',
-      messages: [],
-    },
-    {
-      id: 'random',
-      label: 'Random',
-      messages: [],
-    },
-  ]
+interface AddMessageInput {
+  channelId: string
+  text: string
 }
 
-resetDatabase()
+interface UpdateMessageInput {
+  id: string
+  channelId: string
+  text: string
+}
 
 const resolvers = {
   Query: {
     hello: () => 'Hello world!',
     channels: () => channels,
-    channel: (root, { id }) => channels.find(c => c.id === id),
+    channel: (root: any, { id }: { id: string }) => channels.find(c => c.id === id),
     list: () => ['a', 'b', 'c'],
     good: () => 'good',
-    bad: () => {
+    bad: async () => {
       throw new Error('An error')
     },
   },
 
   Mutation: {
-    addMessage: (root, { input }) => {
+    addMessage: (root: any, { input }: { input: AddMessageInput }) => {
       const channel = channels.find(c => c.id === input.channelId)
       if (!channel) {
-        throw new ApolloError(`Channel ${input.channelId} not found`, 'not-found')
+        throw new GraphQLErrorWithCode(`Channel ${input.channelId} not found`, 'not-found')
       }
       const message = {
         id: shortid(),
@@ -96,12 +90,15 @@ const resolvers = {
       return message
     },
 
-    updateMessage: (root, { input }) => {
+    updateMessage: (root: any, { input }: { input: UpdateMessageInput }) => {
       const channel = channels.find(c => c.id === input.channelId)
       if (!channel) {
-        throw new ApolloError(`Channel ${input.channelId} not found`, 'not-found')
+        throw new GraphQLErrorWithCode(`Channel ${input.channelId} not found`, 'not-found')
       }
       const message = channel.messages.find(m => m.id === input.id)
+      if (!message) {
+        throw new GraphQLErrorWithCode(`Message ${input.id} not found`, 'not-found')
+      }
       Object.assign(message, {
         text: input.text,
       })
@@ -127,27 +124,7 @@ const resolvers = {
   },
 }
 
-const app = express()
-
-app.use(cors('*'))
-
-app.get('/_reset', (req, res) => {
-  resetDatabase()
-  res.status(200).end()
-})
-
-const server = new ApolloServer({
+export const schema = makeExecutableSchema({
   typeDefs,
   resolvers,
-  context: () => new Promise(resolve => {
-    setTimeout(() => resolve({}), 50)
-  }),
-})
-
-server.applyMiddleware({ app })
-
-app.listen({
-  port: 4042,
-}, () => {
-  console.log('🚀  Server ready at http://localhost:4042')
 })

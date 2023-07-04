@@ -1,3 +1,124 @@
+# Changelog
+
+## v4.0.0-beta.8
+
+
+### 🚀 Enhancements
+
+  - **useQuery:** Nullable query (auto disable) (28f3520)
+
+### ❤️  Contributors
+
+- Guillaume Chau ([@Akryum](http://github.com/Akryum))
+
+## v4.0.0-beta.7
+
+
+### 🩹 Fixes
+
+  - **ssr:** Hydration mismatch with keepPreviousResult (87188c4)
+
+### ❤️  Contributors
+
+- Guillaume Chau ([@Akryum](http://github.com/Akryum))
+
+## v4.0.0-beta.6
+
+
+### 🚀 Enhancements
+
+  - KeepPreviousResult (e794c1e)
+
+### 📖 Documentation
+
+  - ProvideApolloClient (#1442)
+
+### 🏡 Chore
+
+  - Update graphql to 16 in repo (4dcfa20)
+  - Typo in test component file (bfca616)
+  - Update lockfile version (2077502)
+
+### ✅ Tests
+
+  - Update server (13bfbbe)
+  - Update pnpm version (722fa0f)
+  - Test-server package (f1ebe70)
+  - Migrate server to typescript (97c1402)
+  - Fix (c881439)
+
+### ❤️  Contributors
+
+- Stefan Schneider <stefan.schneider@gmx.net>
+- Guillaume Chau ([@Akryum](http://github.com/Akryum))
+
+## v4.0.0-beta.5
+
+
+### 🚀 Enhancements
+
+  - UseLazyQuery load returns boolean to make is easier to refetch (dcb1768)
+  - **ts:** Update types to account for changes in TypeScript 4.8 (#1454)
+  - Allow global tracking outside of components (5967e16)
+
+### 🩹 Fixes
+
+  - Don't call variables if query is disabled + fix enabling race conditions, fix #1243, fix #1422 (#1243, #1422)
+  - Events not registered in case of immediate trigger, fix #1154 (#1154)
+  - @vue/apollo-composable ESM settings, fix #1462 (#1463, #1462)
+  - Avoid multiple on error calls without usage of errorPolicy 'all' (#1461)
+  - Ssr export paths, fix #1469 (#1469)
+  - Initialize currentDocument early, fix #1325 (#1325)
+  - **ts:** Allow null on `userLazyQuery` `load` fn, fix #1386 (#1386)
+  - **ssr:** Handle result/error set before serverPrefetch call, fix #1429 (#1429)
+
+### 📖 Documentation
+
+  - Subscriptions configuration docs updated to describe graphql-ws configuration. (#1449)
+
+### 🏡 Chore
+
+  - Update lockfile to v6.0 (81ea32c)
+  - Update sheep/release-tag (cf7917e)
+
+### ✅ Tests
+
+  - Config cypress downloads (32c95de)
+  - Demo useLazyQuery with immediate load (53554b8)
+  - Enabled (db7d79c)
+
+### 🤖 CI
+
+  - Switch to github actions (25c31d2)
+  - Enable on v4 branch (bc3d80c)
+
+### ❤️  Contributors
+
+- Guillaume Chau ([@Akryum](http://github.com/Akryum))
+- Gibran Amparan ([@gibranamparan](http://github.com/gibranamparan))
+- Alessia Bellisario <alessia@apollographql.com>
+- Dominik Klein <dk@zammad.com>
+- Changwan Jun ([@wan2land](http://github.com/wan2land))
+
+
+# [4.0.0-beta.4](https://github.com/vuejs/vue-apollo/compare/v4.0.0-beta.3...v4.0.0-beta.4) (2023-02-22)
+
+
+### Features
+
+* improve ESM support ([2623b32](https://github.com/vuejs/vue-apollo/commit/2623b32d6c999cfa677b3b36969bd6b5b782d387))
+
+
+
+# [4.0.0-beta.3](https://github.com/vuejs/vue-apollo/compare/v4.0.0-beta.2...v4.0.0-beta.3) (2023-02-21)
+
+
+### Bug Fixes
+
+* **ssr:** error not bubbling up ([18fe206](https://github.com/vuejs/vue-apollo/commit/18fe206761eba0af05971dff34113d5396e6e6bf))
+
+
+
 # [4.0.0-beta.2](https://github.com/vuejs/vue-apollo/compare/v4.0.0-beta.1...v4.0.0-beta.2) (2023-02-03)
 
 

@@ -27,8 +27,28 @@ export const router = createRouter({
       component: () => import('./components/LazyQuery.vue'),
     },
     {
+      path: '/lazy-query-immediately',
+      component: () => import('./components/LazyQueryImmediately.vue'),
+    },
+    {
       path: '/partial-error',
       component: () => import('./components/PartialError.vue'),
+    },
+    {
+      path: '/disabled',
+      component: () => import('./components/Disabled.vue'),
+    },
+    {
+      path: '/on-result',
+      component: () => import('./components/OnResult.vue'),
+    },
+    {
+      path: '/keep-previous-result',
+      component: () => import('./components/KeepPreviousResult.vue'),
+    },
+    {
+      path: '/null-query',
+      component: () => import('./components/NullQuery.vue'),
     },
   ],
 })
