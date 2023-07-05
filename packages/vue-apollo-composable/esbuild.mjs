@@ -13,7 +13,7 @@ import { nodeExternalsPlugin } from 'esbuild-node-externals'
 (async () => {
   /** @type {Build[]} */
   const builds = [
-    { format: 'esm', file: 'index.mjs' },
+    { format: 'esm', file: 'index.esm.js' },
     { format: 'cjs', file: 'index.js' },
   ]
   for (const { format, file } of builds) {

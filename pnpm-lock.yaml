@@ -1,4 +1,4 @@
-lockfileVersion: '6.1'
+lockfileVersion: '6.0'
 
 settings:
   autoInstallPeers: true
@@ -300,7 +300,7 @@ importers:
   packages/vue-apollo-components:
     dependencies:
       '@vue/apollo-option':
-        specifier: ^4.0.0-beta.4
+        specifier: ^4.0.0-beta.8-vue2.7
         version: link:../vue-apollo-option
     devDependencies:
       '@apollo/client':
