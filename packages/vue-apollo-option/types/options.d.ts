@@ -16,7 +16,7 @@ export interface AllVueApolloComponentSpecialOptions {
   $skipAllQueries: boolean
   $skipAllSubscriptions: boolean
   $deep: boolean
-  $client: string
+  $client: string|(()=> string)
   $loadingKey: string
   $watchLoading: WatchLoading
   $error: ErrorHandler
